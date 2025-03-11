@@ -1,0 +1,278 @@
+openapi: '3.0.3'
+info:
+  title: Image Smith API
+  version: '1.0'
+servers:
+  - url: http://127.0.0.1
+paths:
+  
+  /auth/register:
+    post:
+      summary: Create new account
+      description: Allow user to create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  nullable: false
+                  maxLength: 255
+                  example: john doe
+                email:
+                  type: string
+                  nullable: false
+                  format: email
+                  example: johndoe@gmail.com
+                password:
+                  type: string
+                  nullable: false
+                  example: rahasia123
+                confirm_password:
+                  type: string
+                  nullable: false
+                  example: rahasia123  
+      responses:
+        '201':
+          description: Successfully create a new account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    example: 28f87aa5-05cb-4067-856d-805126025637
+                  name: 
+                    type: string
+                    example : john doe
+                  email: 
+                    type: string
+                    format: email
+                    example: johndoe@gmail.com
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: 2024-11-05 14:32:45
+                  updated_at:
+                    type: string
+                    format: date-time
+                    example: 2024-11-05 14:32:45
+        '409':
+          description: Status Conflict - Email already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: email already exists
+        '500': 
+          $ref: "#/components/responses/internalServerError"                      
+  /auth/login:
+    post:
+      summary: User login
+      description: Allow user to login with their registered account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: 
+                  type: string
+                  format: email
+                  example: johndoe@gmail.com
+                password:
+                  type: string
+                  nullable: false
+                  example: rahasia123
+      responses:
+        '200':
+          description: Successfully to login
+          headers:
+            Set-Cookie:
+              description: Cookie yang berisi JWT token.
+              schema:
+                type: string
+                example: jwt-token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully login to account
+        '401':
+          $ref: "#/components/responses/unauthorized"
+        '404':
+          description: Not Found - email not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: email not found
+        '500':  
+          $ref: "#/components/responses/internalServerError"                      
+  
+  /images:
+    post:
+      summary: Upload Image
+      description: Allow user to upload image file
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          image/png:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Successfully upload an image
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  image_url:
+                    type: string
+                    example: https://nctojleerwtdfjlhafsq.supabase.co/storage/v1/object/public/photo_profile/foto_federico.jpeg?t=2024-11-06T13%3A24%3A12.489Z
+        '400':
+            description: Bad Request - Unsupported File Format
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    message:
+                      type: string
+                      default: unsupported file format
+        '401':
+          $ref: "#/components/responses/unauthorized"
+        '500':
+          $ref: "#/components/responses/internalServerError"              
+
+  /images/{image-id}/transform:
+    post:
+      summary: Transform an image
+      description: Allows users to apply transformations (resize, crop, convert) to an uploaded image.
+      security:
+        - bearerAuth: []
+      
+      parameters:
+        - name: image-id
+          in: path
+          required: true
+          description: The unique identifier of the image stored in the system.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resize:
+                  type: object
+                  properties:
+                    width:
+                      type: integer
+                      example: 300
+                    height:
+                      type: integer
+                      example: 200
+                crop:
+                  type: object
+                  properties:
+                    x:
+                      type: integer
+                      example: 10
+                    y:
+                      type: integer
+                      example: 10
+                    width:
+                      type: integer
+                      example: 100
+                    height:
+                      type: integer
+                      example: 100
+                convert:
+                  type: string
+                  example: PNG
+      responses:
+        200:
+          description: Successfully transformed the image.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  image_url:
+                    type: string
+                    format: uri
+                    example: "https://storage.com/transformed-image.jpg"
+        400:
+          description: Bad request - Invalid Transformation Parameters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    default: invalid transformation parameters
+        404:
+          description: Image not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    default: image not found
+        500:
+          $ref: "#/components/responses/internalServerError"
+        
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    unauthorized:
+      description: Unauthorized - User Id Not Found in Context
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: User Id Not Found in Context
+
+    internalServerError:
+      description: Internal Server Error - Something Went Wrong
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: An unexpected error occured. Please try again later. 
