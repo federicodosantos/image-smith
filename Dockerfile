@@ -1,5 +1,5 @@
 # Build the application from the source
-FROM golang:1.24-alpine AS build
+FROM golang:1.24-alpine AS build-stage
 
 WORKDIR /app
 
@@ -15,14 +15,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
 FROM build AS run-test-stage
 RUN go test -v ./...
 
-FROM alpine:latest
-
-RUN apk --update add ca-certificates curl && rm -rf /var/cache/apk/* && apk add --no-cache curl
+FROM alpine:latest AS build-release-stage
 
 WORKDIR /app
 
-EXPOSE 8060
+EXPOSE 8080
 
-COPY --from=build /app/main /app/.env ./
+COPY --from=build /app/main /app/main
+COPY .env /app/.env
 
 CMD ["./main"]
