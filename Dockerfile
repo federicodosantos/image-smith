@@ -1,4 +1,5 @@
-FROM golang:1.23-alpine AS build
+# Build the application from the source
+FROM golang:1.24-alpine AS build
 
 WORKDIR /app
 
@@ -8,7 +9,11 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o main cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+
+# Run the tests in the container
+FROM build AS run-test-stage
+RUN go test -v ./...
 
 FROM alpine:latest
 
