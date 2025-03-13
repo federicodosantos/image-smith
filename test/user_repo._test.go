@@ -55,9 +55,9 @@ func TestCreateUser(t *testing.T) {
 					WithArgs(user.Email).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-				mock.ExpectExec(`INSERT INTO users(id, name, email, password, created_at, updated_at) VALUES($1, $2, $3, $4, $5, $6)`).
+				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO users(id, name, email, password, created_at, updated_at) VALUES($1, $2, $3, $4, $5, $6)`)).
 					WithArgs(user.ID, user.Name, user.Email, user.Password, sqlmock.AnyArg(), sqlmock.AnyArg()).
-					WillReturnResult(sqlmock.NewResult(1, 1))
+					WillReturnResult(sqlmock.NewResult(0, 1))
 
 			},
 			user:          createUser(),
@@ -72,6 +72,21 @@ func TestCreateUser(t *testing.T) {
 			},
 			user:          createUser(),
 			expectedError: customErr.ErrEmailExist,
+		},
+		{
+			name: "Error email already exists - CreateUser",
+			setupMock: func(mock sqlmock.Sqlmock, user *model.User) {
+				mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM users WHERE email = $1")).
+					WithArgs(user.Email).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO users(id, name, email, password, created_at, updated_at) VALUES($1, $2, $3, $4, $5, $6)`)).
+					WithArgs(user.ID, user.Name, user.Email, user.Password, sqlmock.AnyArg(), sqlmock.AnyArg()).
+					WillReturnResult(sqlmock.NewResult(0, 0))
+
+			},
+			user:          createUser(),
+			expectedError: customErr.ErrRowsAffected,
 		},
 	}
 
