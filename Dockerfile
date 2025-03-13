@@ -12,7 +12,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
 
 # Run the tests in the container
-FROM build AS run-test-stage
+FROM build-stage AS run-test-stage
 RUN go test -v ./...
 
 FROM alpine:latest AS build-release-stage
@@ -21,7 +21,7 @@ WORKDIR /app
 
 EXPOSE 8080
 
-COPY --from=build /app/main /app/main
+COPY --from=build-stage /app/main /app/main
 COPY .env /app/.env
 
 CMD ["./main"]
