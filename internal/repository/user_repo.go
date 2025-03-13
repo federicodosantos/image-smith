@@ -2,6 +2,9 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+
 	"github.com/federicodosantos/image-smith/internal/model"
 	"github.com/federicodosantos/image-smith/internal/repository/query"
 
@@ -34,7 +37,8 @@ func (u *UserRepository) CreateUser(ctx context.Context, user *model.User) error
 		return customErr.ErrEmailExist
 	}
 
-	result, err := u.db.ExecContext(ctx, query.InsertUserQuery)
+	result, err := u.db.ExecContext(ctx, query.InsertUserQuery,
+		user.ID, user.Name, user.Email, user.Password, user.UpdatedAt, user.UpdatedAt)
 	if err != nil {
 		return nil
 	}
@@ -56,6 +60,9 @@ func (u *UserRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 
 	err := u.db.GetContext(ctx, &user, query.GetUserByEmailQuery, email)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, customErr.ErrEmailNotFound
+		}
 		return nil, err
 	}
 
