@@ -27,9 +27,11 @@ jobs:
           tags: ${{ vars.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest
 
       - name: Set up Go
-        uses: action/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+          
+      - run: go version
 
 
   
