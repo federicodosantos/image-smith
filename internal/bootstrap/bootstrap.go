@@ -9,6 +9,7 @@ import (
 	"github.com/federicodosantos/image-smith/internal/repository"
 	"github.com/federicodosantos/image-smith/internal/usecase"
 	"github.com/federicodosantos/image-smith/pkg/jwt"
+	"github.com/federicodosantos/image-smith/pkg/util"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -42,4 +43,6 @@ func (b *Bootstrap) InitApp() {
 
 	//initialize routes
 	delivery.UserRoutes(b.router, userHandler)
+
+	util.HealthCheck(b.router, b.db)
 }
