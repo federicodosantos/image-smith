@@ -52,7 +52,7 @@ func (u *UserUsecase) Register(ctx context.Context, req *dto.UserRegisterRequest
 
 	response := &dto.UserRegisterResponse{
 		ID:        createdUser.ID,
-		Name:      createdUser.ID,
+		Name:      createdUser.Name,
 		Email:     createdUser.Email,
 		CreatedAt: createdUser.CreatedAt,
 	}
