@@ -7,6 +7,7 @@ import (
 	"github.com/federicodosantos/image-smith/internal/dto"
 	"github.com/federicodosantos/image-smith/internal/model"
 	"github.com/federicodosantos/image-smith/internal/repository"
+	customErr "github.com/federicodosantos/image-smith/pkg/error"
 	"github.com/federicodosantos/image-smith/pkg/jwt"
 	"github.com/federicodosantos/image-smith/pkg/regex"
 	"github.com/google/uuid"
@@ -28,6 +29,11 @@ func NewUserUsecase(userRepo repository.IUserRepository, jwt jwt.JWTItf) IUserUs
 }
 
 func (u *UserUsecase) Register(ctx context.Context, req *dto.UserRegisterRequest) (*dto.UserRegisterResponse, error) {
+	existingUser, err := u.userRepo.GetUserByEmail(ctx, req.Email)
+	if err == nil && existingUser != nil {
+		return nil, customErr.ErrEmailExist
+	}
+
 	if err := regex.Password(req.Password); err != nil {
 		return nil, err
 	}

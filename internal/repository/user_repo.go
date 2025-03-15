@@ -16,7 +16,6 @@ type IUserRepository interface {
 	CreateUser(ctx context.Context, user *model.User) error
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	GetUserById(ctx context.Context, id string) (*model.User, error)
-	CheckEmailExists(ctx context.Context, email string) (bool, error)
 }
 
 type UserRepository struct {
@@ -28,15 +27,6 @@ func NewUserRepository(db *sqlx.DB) IUserRepository {
 }
 
 func (u *UserRepository) CreateUser(ctx context.Context, user *model.User) error {
-	exists, err := u.CheckEmailExists(ctx, user.Email)
-	if err != nil {
-		return err
-	}
-
-	if exists {
-		return customErr.ErrEmailExist
-	}
-
 	result, err := u.db.ExecContext(ctx, query.InsertUserQuery,
 		user.ID, user.Name, user.Email, user.Password, user.UpdatedAt, user.UpdatedAt)
 	if err != nil {
@@ -78,15 +68,4 @@ func (u *UserRepository) GetUserById(ctx context.Context, id string) (*model.Use
 	}
 
 	return &user, nil
-}
-
-func (u *UserRepository) CheckEmailExists(ctx context.Context, email string) (bool, error) {
-	var count int
-
-	err := u.db.GetContext(ctx, &count, query.CheckEmailExistQuery, email)
-	if err != nil {
-		return false, err
-	}
-
-	return count > 0, nil
 }
