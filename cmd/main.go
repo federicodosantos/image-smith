@@ -7,15 +7,12 @@ import (
 	"os"
 
 	"github.com/federicodosantos/image-smith/db"
-
+	"github.com/federicodosantos/image-smith/internal/bootstrap"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("cannot environment variable : %e", err)
-	}
+	_ = godotenv.Load()
 
 	var PORT = os.Getenv("APP_PORT")
 	if PORT == "" {
@@ -27,13 +24,17 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	b := bootstrap.NewBootstrap(db, mux)
+
+	b.InitApp()
+
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", PORT),
 		Handler: mux,
 	}
 
 	log.Printf("Running the server on port %s", PORT)
-	if err = server.ListenAndServe(); err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("cannot running the server : ")
 	}
 }
