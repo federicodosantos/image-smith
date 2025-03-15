@@ -11,6 +11,7 @@ services:
       - image-smith-networks
     depends_on:
       - db
+    env_file: .env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${APP_PORT}/health-check"]
       interval: 30s
@@ -26,7 +27,7 @@ services:
     ports:
       - "${DB_PORT}:${DB_PORT}"
     volumes:
-      - postgres_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - image-smith-networks
     restart: always
