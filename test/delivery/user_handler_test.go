@@ -3,6 +3,7 @@ package delivery_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -12,9 +13,13 @@ import (
 
 	"github.com/federicodosantos/image-smith/internal/delivery"
 	"github.com/federicodosantos/image-smith/internal/dto"
+	customErr "github.com/federicodosantos/image-smith/pkg/error"
 	response "github.com/federicodosantos/image-smith/pkg/response"
 	"go.uber.org/mock/gomock"
 )
+
+var jsonHeader = http.Header{
+	"Content-Type": {"application/json"}}
 
 func TestRegister(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -56,11 +61,14 @@ func TestRegister(t *testing.T) {
 			mockBehavior: func(mockUsecase *MockIUserUsecase) {
 				mockUsecase.EXPECT().
 					Register(gomock.Any(), gomock.Any()).
-					Return(&dto.UserRegisterResponse{}, nil)
+					Return(&dto.UserRegisterResponse{
+						ID:        "uuid",
+						Name:      "Jamal",
+						Email:     "jamalunyu@gmail.com",
+						CreatedAt: time.Now(),
+					}, nil)
 			},
-			expectedHeader: http.Header{
-				"Content-Type": {"application/json"},
-			},
+			expectedHeader: jsonHeader,
 			expectedBody: response.HttpResponse{
 				Status:  http.StatusCreated,
 				Message: "successfully create user",
@@ -70,6 +78,54 @@ func TestRegister(t *testing.T) {
 					Email:     "jamalunyu@gmail.com",
 					CreatedAt: time.Now(),
 				},
+			},
+		},
+		{
+			Name: "Bad Request - Invalid JSON",
+			Input: parameter{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					http.MethodPost,
+					"http://0.0.0.0/auth/register",
+					strings.NewReader("invalid json"),
+				),
+			},
+			mockBehavior: func(mockUsecase *MockIUserUsecase) {
+
+			},
+			expectedHeader: jsonHeader,
+			expectedBody: response.HttpResponse{
+				Status:  http.StatusBadRequest,
+				Message: "",
+				Data:    &dto.UserRegisterResponse{},
+			},
+		},
+		{
+			Name: "Conflict - Email already exists",
+			Input: parameter{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					http.MethodPost,
+					"http://0.0.0.0/auth/register",
+					strings.NewReader(`
+					{
+						"name":     "Jamal",
+						"email":    "jamalunyu@gmail.com",
+						"password": "Rahasia#123"
+					},
+				`),
+				),
+			},
+			mockBehavior: func(mockUsecase *MockIUserUsecase) {
+				mockUsecase.EXPECT().
+					Register(gomock.Any(), gomock.Any()).
+					Return(&dto.UserRegisterResponse{}, customErr.ErrEmailExist)
+			},
+			expectedHeader: jsonHeader,
+			expectedBody: response.HttpResponse{
+				Status:  http.StatusConflict,
+				Message: "email already exist",
+				Data:    &dto.UserRegisterResponse{},
 			},
 		},
 	}
@@ -94,34 +150,44 @@ func TestRegister(t *testing.T) {
 			bodyBuffer := new(bytes.Buffer)
 			bodyBuffer.ReadFrom(res.Body)
 
-			actualResponseBody := &dto.UserRegisterResponse{
-				ID:        "uuid",
-				Name:      "Jamal",
-				Email:     "jamalunyu@gmail.com",
-				CreatedAt: time.Now(),
-			}
-			json.Unmarshal(bodyBuffer.Bytes(), &actualResponseBody)
+			var actualData response.HttpResponse
+			json.Unmarshal(bodyBuffer.Bytes(), &actualData)
 
 			expectedData := tc.expectedBody.Data.(*dto.UserRegisterResponse)
 
-			if expectedData.ID != actualResponseBody.ID {
-				t.Errorf("Id from response data = %s, want %s", actualResponseBody.ID, expectedData.ID)
+			if actualData.Status != http.StatusOK &&
+				actualData.Status != http.StatusCreated {
+				if actualData.Message == "" {
+					t.Errorf("Error message should not be empty for failed response")
+				}
+				fmt.Println(actualData.Message)
+				if actualData.Data != nil {
+					t.Errorf("Data should be nil for error responses, got %v", actualData.Data)
+				}
+
+			} else {
+				var actualDataBody *dto.UserRegisterResponse
+				dataJSON, _ := json.Marshal(actualData.Data)
+				json.Unmarshal(dataJSON, &actualDataBody)
+
+				if expectedData.ID != actualDataBody.ID {
+					t.Errorf("Id from response data = %s, want %s", actualDataBody.ID, expectedData.ID)
+				}
+
+				if expectedData.Name != actualDataBody.Name {
+					t.Errorf("Name from response data = %s, want %s", actualDataBody.Name, expectedData.Name)
+				}
+
+				if expectedData.Email != actualDataBody.Email {
+					t.Errorf("Email from response data = %s, want %s", actualDataBody.Email, expectedData.Email)
+				}
+
+				timeDiff := actualDataBody.CreatedAt.Sub(expectedData.CreatedAt)
+
+				if timeDiff > time.Second || timeDiff < -time.Second {
+					t.Errorf("Created at from response data = %v, want %v", actualDataBody.CreatedAt, expectedData.CreatedAt)
+				}
 			}
-
-			if expectedData.Name != actualResponseBody.Name {
-				t.Errorf("Name from response data = %s, want %s", actualResponseBody.Name, expectedData.Name)
-			}
-
-			if expectedData.Email != actualResponseBody.Email {
-				t.Errorf("Email from response data = %s, want %s", actualResponseBody.Email, expectedData.Email)
-			}
-
-			timeDiff := actualResponseBody.CreatedAt.Sub(expectedData.CreatedAt)
-
-			if timeDiff > time.Second || timeDiff < -time.Second {
-				t.Errorf("Created at from response data = %v, want %v", actualResponseBody.CreatedAt, expectedData.CreatedAt)
-			}
-
 		})
 	}
 }
