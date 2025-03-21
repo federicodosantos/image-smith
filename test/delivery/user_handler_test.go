@@ -3,7 +3,6 @@ package delivery_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -20,6 +19,14 @@ import (
 
 var jsonHeader = http.Header{
 	"Content-Type": {"application/json"}}
+
+var registerURL = "http://0.0.0.0/auth/register"
+var loginURL = "http://0.0.0.0/auth/login"
+
+var nilRegisterResponse = &dto.UserRegisterResponse{}
+var nilLoginResponse = &dto.UserLoginResponse{}
+
+var postMethod = http.MethodPost
 
 func TestRegister(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -47,8 +54,8 @@ func TestRegister(t *testing.T) {
 			Input: parameter{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
-					http.MethodPost,
-					"http://0.0.0.0/auth/register",
+					postMethod,
+					registerURL,
 					strings.NewReader(`
 						{
 							"name":     "Jamal",
@@ -85,8 +92,8 @@ func TestRegister(t *testing.T) {
 			Input: parameter{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
-					http.MethodPost,
-					"http://0.0.0.0/auth/register",
+					postMethod,
+					registerURL,
 					strings.NewReader("invalid json"),
 				),
 			},
@@ -97,7 +104,7 @@ func TestRegister(t *testing.T) {
 			expectedBody: response.HttpResponse{
 				Status:  http.StatusBadRequest,
 				Message: "",
-				Data:    &dto.UserRegisterResponse{},
+				Data:    nilRegisterResponse,
 			},
 		},
 		{
@@ -105,8 +112,8 @@ func TestRegister(t *testing.T) {
 			Input: parameter{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest(
-					http.MethodPost,
-					"http://0.0.0.0/auth/register",
+					postMethod,
+					registerURL,
 					strings.NewReader(`
 					{
 						"name":     "Jamal",
@@ -119,13 +126,13 @@ func TestRegister(t *testing.T) {
 			mockBehavior: func(mockUsecase *MockIUserUsecase) {
 				mockUsecase.EXPECT().
 					Register(gomock.Any(), gomock.Any()).
-					Return(&dto.UserRegisterResponse{}, customErr.ErrEmailExist)
+					Return(nilRegisterResponse, customErr.ErrEmailExist)
 			},
 			expectedHeader: jsonHeader,
 			expectedBody: response.HttpResponse{
 				Status:  http.StatusConflict,
 				Message: "email already exist",
-				Data:    &dto.UserRegisterResponse{},
+				Data:    nilRegisterResponse,
 			},
 		},
 	}
@@ -160,7 +167,7 @@ func TestRegister(t *testing.T) {
 				if actualData.Message == "" {
 					t.Errorf("Error message should not be empty for failed response")
 				}
-				fmt.Println(actualData.Message)
+
 				if actualData.Data != nil {
 					t.Errorf("Data should be nil for error responses, got %v", actualData.Data)
 				}
@@ -186,6 +193,161 @@ func TestRegister(t *testing.T) {
 
 				if timeDiff > time.Second || timeDiff < -time.Second {
 					t.Errorf("Created at from response data = %v, want %v", actualDataBody.CreatedAt, expectedData.CreatedAt)
+				}
+			}
+		})
+	}
+}
+
+func TestLogin(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockUsecase := NewMockIUserUsecase(ctrl)
+	userHandler := delivery.NewUserHandler(mockUsecase)
+
+	type parameter struct {
+		w http.ResponseWriter
+		r *http.Request
+	}
+
+	type TestCase struct {
+		Name           string
+		Input          parameter
+		mockBehavior   func(mockUsecase *MockIUserUsecase)
+		expectedHeader http.Header
+		expectedBody   response.HttpResponse
+	}
+
+	testCases := []TestCase{
+		{
+			Name: "Successfully login",
+			Input: parameter{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					postMethod,
+					loginURL,
+					strings.NewReader(`
+					{
+						"email":    "jamalunyu@gmail.com",
+						"password": "Rahasia#123"
+					},
+				`)),
+			},
+			mockBehavior: func(mockUsecase *MockIUserUsecase) {
+				mockUsecase.EXPECT().
+					Login(gomock.Any(), gomock.Any()).
+					Return(&dto.UserLoginResponse{
+						JWTToken: "jwt-token",
+					}, nil)
+			},
+			expectedHeader: jsonHeader,
+			expectedBody: response.HttpResponse{
+				Status:  http.StatusOK,
+				Message: "successfully login to account",
+				Data: &dto.UserLoginResponse{
+					JWTToken: "jwt-token",
+				},
+			},
+		},
+		{
+			Name: "Failed - Email not found",
+			Input: parameter{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					postMethod,
+					loginURL,
+					strings.NewReader(`
+						{
+							"email":    "jamalunyu@gmail.com",
+							"password": "Rahasia#123"
+						},
+					`),
+				),
+			},
+			mockBehavior: func(mockUsecase *MockIUserUsecase) {
+				mockUsecase.EXPECT().
+					Login(gomock.Any(), gomock.Any()).
+					Return(nilLoginResponse, customErr.ErrEmailNotFound)
+			},
+			expectedHeader: jsonHeader,
+			expectedBody: response.HttpResponse{
+				Status:  http.StatusNotFound,
+				Message: "email not found",
+				Data:    nilLoginResponse,
+			},
+		},
+		{
+			Name: "Failed - Password incorrect",
+			Input: parameter{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					postMethod,
+					loginURL,
+					strings.NewReader(`
+					{
+						"email":    "jamalunyu@gmail.com",
+						"password": "password-salah"
+					},
+					`),
+				),
+			},
+			mockBehavior: func(mockUsecase *MockIUserUsecase) {
+				mockUsecase.EXPECT().
+					Login(gomock.Any(), gomock.Any()).
+					Return(nilLoginResponse, customErr.ErrIncorrectPassword)
+			},
+			expectedHeader: jsonHeader,
+			expectedBody: response.HttpResponse{
+				Status:  http.StatusUnauthorized,
+				Message: "incorrect password",
+				Data:    nilLoginResponse,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			tc.mockBehavior(mockUsecase)
+
+			userHandler.Login(tc.Input.w, tc.Input.r)
+
+			rec := tc.Input.w.(*httptest.ResponseRecorder)
+			res := rec.Result()
+
+			if !reflect.DeepEqual(res.StatusCode, tc.expectedBody.Status) {
+				t.Errorf("userHandler.Register() status code = %v, want %v", res.StatusCode, tc.expectedBody.Status)
+			}
+
+			if !reflect.DeepEqual(res.Header, tc.expectedHeader) {
+				t.Errorf("userHandler.Register() header = %v, want %v", res.Header, tc.expectedHeader)
+			}
+
+			bodyBuffer := new(bytes.Buffer)
+			bodyBuffer.ReadFrom(res.Body)
+
+			var actualData response.HttpResponse
+			json.Unmarshal(bodyBuffer.Bytes(), &actualData)
+
+			expectedData := tc.expectedBody.Data.(*dto.UserLoginResponse)
+
+			if actualData.Status != http.StatusOK &&
+				actualData.Status != http.StatusCreated {
+				if actualData.Message == "" {
+					t.Errorf("Error message should not be empty for failed response")
+				}
+
+				if actualData.Data != nil {
+					t.Errorf("Data should be nil for error responses, got %v", actualData.Data)
+				}
+
+			} else {
+				var actualDataBody *dto.UserLoginResponse
+				dataJSON, _ := json.Marshal(actualData.Data)
+				json.Unmarshal(dataJSON, &actualDataBody)
+
+				if expectedData.JWTToken != actualDataBody.JWTToken {
+					t.Errorf("Id from response data = %s, want %s", actualDataBody.JWTToken, expectedData.JWTToken)
 				}
 			}
 		})
