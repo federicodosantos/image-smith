@@ -12,4 +12,7 @@ migrate-down:
 migrate-fix:
 	@migrate -path db/migrations -database "postgres://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable" -verbose force 20241106063649
 
-.PHONY: run migrate-up migrate-down migrate-fix
+test:
+	@go test ./test/... -v
+
+.PHONY: run migrate-up migrate-down migrate-fix test
